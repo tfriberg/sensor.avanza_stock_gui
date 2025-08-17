@@ -155,6 +155,14 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Store found configurations for the confirmation step
             self._found_configs = []
             # ...existing code for processing entries...
+        except Exception as ex:
+            _LOGGER.exception("Error migrating YAML configuration: %s", ex)
+            errors = {}
+            errors["base"] = "migration_error"
+            return self.async_show_form(
+                step_id="migrate_yaml",
+                errors=errors,
+            )
         
         if user_input is not None:
             if CONF_ID in user_input:  # User selected an instrument
