@@ -1,4 +1,4 @@
-# sensor.avanza_stock
+# sensor.avanza_stock_gui
 
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
