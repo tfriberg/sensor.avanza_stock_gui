@@ -233,30 +233,31 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
-            user_input.update(instrument_info)  # Merge instrument info with user input
-            title = user_input.get(CONF_NAME, f"{DEFAULT_NAME} {user_input[CONF_ID]}")
-            
-            return self.async_create_entry(
-                title=title,
-                data={
-                    CONF_NAME: title,
-                    CONF_ID: user_input[CONF_ID],
-                    CONF_SHARES: user_input.get(CONF_SHARES, 0),
-                    CONF_PURCHASE_PRICE: user_input.get(CONF_PURCHASE_PRICE, 0),
-                    CONF_PURCHASE_DATE: user_input.get(CONF_PURCHASE_DATE, ""),
-                    CONF_CURRENCY: user_input.get(CONF_CURRENCY),
-                    CONF_CONVERSION_CURRENCY: user_input.get(CONF_CONVERSION_CURRENCY),
-                    CONF_INVERT_CONVERSION_CURRENCY: user_input.get(
-                        CONF_INVERT_CONVERSION_CURRENCY, False
-                    ),
-                    CONF_MONITORED_CONDITIONS: user_input.get(
-                        CONF_MONITORED_CONDITIONS, list(MONITORED_CONDITIONS)
-                    ),
-                    CONF_SHOW_TRENDING_ICON: user_input.get(
-                        CONF_SHOW_TRENDING_ICON, DEFAULT_SHOW_TRENDING_ICON
-                    ),
-                },
-            )
+
+        user_input.update(instrument_info)  # Merge instrument info with user input
+        title = user_input.get(CONF_NAME, f"{DEFAULT_NAME} {user_input[CONF_ID]}")
+        
+        return self.async_create_entry(
+            title=title,
+            data={
+                CONF_NAME: title,
+                CONF_ID: user_input[CONF_ID],
+                CONF_SHARES: user_input.get(CONF_SHARES, 0),
+                CONF_PURCHASE_PRICE: user_input.get(CONF_PURCHASE_PRICE, 0),
+                CONF_PURCHASE_DATE: user_input.get(CONF_PURCHASE_DATE, ""),
+                CONF_CURRENCY: user_input.get(CONF_CURRENCY),
+                CONF_CONVERSION_CURRENCY: user_input.get(CONF_CONVERSION_CURRENCY),
+                CONF_INVERT_CONVERSION_CURRENCY: user_input.get(
+                    CONF_INVERT_CONVERSION_CURRENCY, False
+                ),
+                CONF_MONITORED_CONDITIONS: user_input.get(
+                    CONF_MONITORED_CONDITIONS, list(MONITORED_CONDITIONS)
+                ),
+                CONF_SHOW_TRENDING_ICON: user_input.get(
+                    CONF_SHOW_TRENDING_ICON, DEFAULT_SHOW_TRENDING_ICON
+                ),
+            },
+        )
 
         if user_input is not None:
             # Validate stock ID exists by trying to fetch it
