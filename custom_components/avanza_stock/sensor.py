@@ -17,6 +17,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.config_entries import SOURCE_IMPORT
 from homeassistant.const import (
     CONF_CURRENCY,
     CONF_ID,
@@ -24,6 +25,8 @@ from homeassistant.const import (
     CONF_NAME,
 )
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+
+from .const import DOMAIN
 
 from custom_components.avanza_stock.const import (
     ATTR_TRENDING,
@@ -90,13 +93,50 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up Avanza Stock sensor based on a config entry."""
+    session = async_create_clientsession(hass)
+    config = entry.data
+    monitored_conditions = config.get(CONF_MONITORED_CONDITIONS, MONITORED_CONDITIONS_DEFAULT)
+    show_trending_icon = config.get(CONF_SHOW_TRENDING_ICON, DEFAULT_SHOW_TRENDING_ICON)
+    
+    entities = [
+        AvanzaStockSensor(
+            session,
+            monitored_conditions,
+            show_trending_icon,
+            config[CONF_ID],
+            config.get(CONF_NAME),
+            config.get(CONF_SHARES),
+            config.get(CONF_PURCHASE_DATE),
+            config.get(CONF_PURCHASE_PRICE),
+            config.get(CONF_CONVERSION_CURRENCY),
+            config.get(CONF_INVERT_CONVERSION_CURRENCY, False),
+            config.get(CONF_CURRENCY),
+        )
+    ]
+    
+    async_add_entities(entities, True)
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up the Avanza Stock sensor."""
+    """Set up the Avanza Stock sensor from YAML."""
     session = async_create_clientsession(hass)
     monitored_conditions = config.get(CONF_MONITORED_CONDITIONS)
     show_trending_icon = config.get(CONF_SHOW_TRENDING_ICON)
     stock = config.get(CONF_STOCK)
     entities = []
+    
+    # Import the YAML configuration into config entries
+    if discovery_info is None:
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": SOURCE_IMPORT},
+                data=config,
+            )
+        )
+        return
+    
     if isinstance(stock, int):
         name = config.get(CONF_NAME)
         shares = config.get(CONF_SHARES)

@@ -1,0 +1,55 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "menu_options": {
+                    "search_instrument": "Search for stock/fund/currency",
+                    "manual_entry": "Enter ID manually"
+                }
+            },
+            "search_instrument": {
+                "title": "Search Avanza",
+                "data": {
+                    "search": "Search term",
+                    "instrument_type": "Instrument type"
+                }
+            },
+            "select_instrument": {
+                "title": "Select instrument",
+                "data": {
+                    "id": "Instrument"
+                }
+            },
+            "manual_entry": {
+                "title": "Manual configuration",
+                "data": {
+                    "id": "Instrument ID",
+                    "name": "Name (optional)"
+                }
+            },
+            "configure": {
+                "title": "Configure instrument",
+                "data": {
+                    "name": "Name",
+                    "shares": "Number of shares",
+                    "purchase_price": "Purchase price per share",
+                    "purchase_date": "Purchase date",
+                    "currency": "Override currency",
+                    "conversion_currency": "Currency conversion ID",
+                    "invert_conversion_currency": "Invert conversion rate",
+                    "monitored_conditions": "Values to monitor",
+                    "show_trending_icon": "Show trending icon"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Failed to connect to Avanza",
+            "invalid_stock_id": "Invalid instrument ID",
+            "unknown": "Unexpected error occurred",
+            "no_results": "No matching instruments found"
+        },
+        "abort": {
+            "already_configured": "This instrument is already configured"
+        }
+    }
+}

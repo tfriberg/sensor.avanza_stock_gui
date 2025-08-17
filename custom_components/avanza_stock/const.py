@@ -1,8 +1,23 @@
 """Constants for avanza_stock."""
 
-DEFAULT_NAME = "Avanza Stock"
+DOMAIN = "avanza_stock"
+DEFAULT_NAME = "Avanza Stock GUI"
 
+# Configuration constants
 CONF_STOCK = "stock"
+CONF_SEARCH = "search"
+CONF_INSTRUMENT_TYPE = "instrument_type"
+
+# Search constants
+INSTRUMENT_TYPES = {
+    "stock": "Aktier",
+    "fund": "Fonder",
+    "index": "Index",
+    "bond": "Obligationer",
+    "certificate": "Certifikat",
+    "exchange_rate": "Valutor",
+    "all": "Alla"
+}
 CONF_SHARES = "shares"
 CONF_PURCHASE_DATE = "purchase_date"
 CONF_PURCHASE_PRICE = "purchase_price"

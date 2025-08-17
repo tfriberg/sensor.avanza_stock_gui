@@ -1,15 +1,16 @@
 {
   "domain": "avanza_stock",
-  "name": "Avanza Stock",
+  "name": "Avanza Stock GUI",
   "codeowners": [
     "@claha"
   ],
+  "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/custom-components/sensor.avanza_stock",
+  "documentation": "https://github.com/tfriberg/sensor.avanza_stock_gui",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/custom-components/sensor.avanza_stock/issues",
+  "issue_tracker": "https://github.com/tfriberg/sensor.avanza_stock_gui/issues",
   "requirements": [
     "pyavanza==0.7.1"
   ],
-  "version": "1.5.4"
+  "version": "1.6.0"
 }

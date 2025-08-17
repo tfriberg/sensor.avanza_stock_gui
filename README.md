@@ -31,6 +31,43 @@ directory. As example, you will get the `sensor.py` file in the following path:
 
 ## Configuration
 
+This integration can be configured in two ways:
+
+### Method 1: Using the Home Assistant UI (Recommended)
+
+1. Go to **Configuration** > **Integrations**
+2. Click the **+ ADD INTEGRATION** button
+3. Search for "Avanza Stock"
+4. Choose one of the following methods:
+
+   **Option A: Search for an Instrument**
+   - Click "Search for stock/fund/currency"
+   - Enter your search term (e.g., "Volvo" or "USD/SEK")
+   - Select the instrument type (Stocks, Funds, Exchange Rates, etc.)
+   - Choose from the search results
+   
+   **Option B: Manual Entry**
+   - Click "Enter ID manually"
+   - Enter the stock ID (see [Finding stock or conversion currency](#finding-stock-or-conversion-currency))
+
+5. Configure optional settings:
+   - Name
+   - Number of shares
+   - Purchase price
+   - Purchase date
+   - Currency settings:
+     - Override currency
+     - Currency conversion ID
+     - Invert conversion rate (useful when you need to reverse the conversion direction)
+   - Monitored conditions
+   - Trending icon display
+
+After setup, you can modify the configuration anytime by clicking the "Options" button on the integration card.
+
+### Method 2: YAML Configuration (Legacy)
+
+You can still use YAML configuration, which will be automatically imported into the UI. This is useful for bulk configuration or if you prefer YAML:
+
 key | type | description
 :--- | :--- | :---
 **platform (Required)**                    | string        | `avanza_stock`
@@ -66,7 +103,16 @@ If no `monitored_conditions` is defined, change, changePercent and name will be 
 
 Go to [Avanza](https://www.avanza.se) and search for the stock you want to track. In the resulting url there is a number, this is the stock id needed for the configuration. Even though it is a Swedish bank it is possible to find stocks from the following countries: Sweden, USA, Denmark, Norway, Finland, Canada, Belgium, France, Italy, Netherlands, Portugal and Germany. To find conversion currencies search for example "USD/SEK" and look for the id in the resulting url. If you can not find your conversion try and search the reverse (NOK/SEK instead of SEK/NOK) and use the `invert_conversion_currency` to get your preffered currency.
 
-## Example
+## Examples
+
+### Using the UI
+
+1. Add the integration through the UI
+2. Enter the stock ID (e.g., 5361 for Avanza Bank Holding)
+3. Configure any optional settings
+4. Click Submit
+
+### Using YAML (Legacy)
 
 **Configuration with default settings:**
 
@@ -98,6 +144,20 @@ sensor:
         name: Avanza Bank Holding
       - id: 8123
         name: Home Assistant
+```
+
+## Migration from YAML to UI
+
+If you're currently using YAML configuration, you can:
+
+1. Keep your existing YAML configuration - it will be automatically imported into the UI
+2. Remove your YAML configuration and set up the integration through the UI
+3. Use a mix of both methods (though using just one method is recommended)
+
+Your existing YAML configurations will continue to work and will appear in the UI automatically. You can then manage them through the UI if you wish.
+
+Note: The YAML configuration can be in any .yaml file that uses the `platform: avanza_stock` syntax, and it supports !include directives.
+````
     monitored_conditions:
       - totalVolumeTraded
       - totalValueTraded
