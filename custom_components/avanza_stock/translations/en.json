@@ -3,9 +3,7 @@
         "step": {
             "user": {
                 "menu_options": {
-                    "migrate_yaml": "Import existing configuration from YAML",
-                    "search_instrument": "Search for stock/fund/currency",
-                    "manual_entry": "Enter ID manually"
+                    "default": "Add Avanza Stock integration"
                 }
             },
             "search_instrument": {
