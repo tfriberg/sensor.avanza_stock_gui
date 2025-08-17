@@ -43,11 +43,12 @@
                 }
             },
             "confirm_migration": {
-                "title": "Confirm Configuration Import",
-                "description": "The following configurations were found:\n\n{configs}\n\nChoose an action to proceed:",
+                "title": "Import Avanza Stock Configurations",
+                "description": "Found {total} configurations:\n\n{configs}\n\nSelect the configurations to import and choose an action:",
                 "data": {
+                    "configs_to_import": "Configurations to import",
                     "action": "Action",
-                    "config_index": "Select configuration to modify"
+                    "config_index": "Configuration to modify"
                 }
             },
             "modify_config": {

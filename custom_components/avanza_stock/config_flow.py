@@ -10,9 +10,34 @@ from homeassistant.const import (
     CONF_CURRENCY,
     CONF_ID,
     CONF_MONITORED_CONDITIONS,
-    CONF_NAME,
-)
-from homeassistant.core import callback, HomeAssistant
+    CONF_N                    self._selected_instrument = next(
+                    (item for item in self._search_results if str(item["id"]) == user_input[CONF_ID]),
+                    None
+                )
+                if self._selected_instrument:
+                    try:
+                        # Get full instrument details
+                        session = async_get_clientsession(self.hass)
+                        stock_data = await pyavanza.get_stock_info(
+                            session, 
+                            self._selected_instrument["id"]
+                        )
+                        
+                        config_data = {
+                            CONF_ID: self._selected_instrument["id"],
+                            CONF_NAME: self._selected_instrument["name"]
+                        }
+                        
+                # Set currency conversion if not already set
+                if CONF_CONVERSION_CURRENCY not in instrument_info:
+                    currency = stock_data.get("currency", "SEK")
+                    conversion_id, should_invert = get_currency_config(currency)
+                    if conversion_id is not None:
+                        instrument_info[CONF_CONVERSION_CURRENCY] = conversion_id
+                        instrument_info[CONF_INVERT_CONVERSION_CURRENCY] = should_invert                        return await self.async_step_configure(config_data)
+                    except Exception as err:  # pylint: disable=broad-except
+                        _LOGGER.error("Failed to get stock details: %s", err)
+                        errors["base"] = "cannot_connect"om homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -36,6 +61,8 @@ from .const import (
     DOMAIN,
     MONITORED_CONDITIONS,
     INSTRUMENT_TYPES,
+    CURRENCY_MAP,
+    REVERSE_CURRENCY_MAP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,8 +95,10 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             if user_input.get("action") == "confirm":
-                # Import all confirmed configurations
-                for config in self._found_configs:
+                # Import selected configurations
+                selected_indexes = [int(i) for i in user_input.get("configs_to_import", [])]
+                for i in selected_indexes:
+                    config = self._found_configs[i]
                     await self.async_step_configure(config)
                 # Clear the stored configs
                 self._found_configs = []
@@ -93,25 +122,36 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             shares = config.get(CONF_SHARES, 0)
             purchase_price = config.get(CONF_PURCHASE_PRICE, 0)
             purchase_date = config.get(CONF_PURCHASE_DATE, "")
-            currency = config.get(CONF_CURRENCY, "")
-            config_list.append(
-                f"{name} ({shares} shares @ {purchase_price} {currency} on {purchase_date})"
-            )
+            conv_curr_id = config.get(CONF_CONVERSION_CURRENCY)
+            currency = REVERSE_CURRENCY_MAP.get(conv_curr_id, "SEK")
+            
+            config_list.append({
+                "id": config[CONF_ID],
+                "name": name,
+                "shares": shares,
+                "purchase_price": purchase_price,
+                "purchase_date": purchase_date,
+                "currency": currency,
+                "display": f"{name}: {shares} shares @ {purchase_price} {currency}" + 
+                          (f" (bought {purchase_date})" if purchase_date else "")
+            })
 
+        config_indexes = {str(i): conf["display"] for i, conf in enumerate(config_list)}
+        
         return self.async_show_form(
             step_id="confirm_migration",
             data_schema=vol.Schema({
+                vol.Optional("configs_to_import", default=list(config_indexes.keys())): cv.multi_select(config_indexes),
                 vol.Required("action"): vol.In({
-                    "confirm": "Confirm and import all",
+                    "confirm": "Import selected configurations",
                     "modify": "Modify selected configuration",
                     "add_more": "Add more instruments",
                 }),
-                vol.Optional("config_index"): vol.In(
-                    {str(i): conf for i, conf in enumerate(config_list)}
-                ),
+                vol.Optional("config_index"): vol.In(config_indexes),
             }),
             description_placeholders={
-                "configs": "\n".join(f"- {conf}" for conf in config_list)
+                "total": str(len(config_list)),
+                "configs": "\n".join(f"• {conf['display']}" for conf in config_list)
             },
             errors=errors,
         )
@@ -124,12 +164,25 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config = self._found_configs[self._current_config_index]
 
         if user_input is not None:
+            # Convert currency selection to conversion_currency ID
+            selected_currency = user_input.pop("currency", "SEK")
+            if selected_currency != "SEK":
+                user_input[CONF_CONVERSION_CURRENCY] = CURRENCY_MAP[selected_currency]
+            elif CONF_CONVERSION_CURRENCY in self._found_configs[self._current_config_index]:
+                del self._found_configs[self._current_config_index][CONF_CONVERSION_CURRENCY]
+            
             # Update the configuration with new values
             self._found_configs[self._current_config_index].update(user_input)
             # Return to confirmation step
             return await self.async_step_confirm_migration()
 
         # Show form with current values
+        # Get current currency from conversion_currency
+        current_currency = REVERSE_CURRENCY_MAP.get(
+            config.get(CONF_CONVERSION_CURRENCY),
+            "SEK"
+        )
+        
         return self.async_show_form(
             step_id="modify_config",
             data_schema=vol.Schema({
@@ -137,9 +190,7 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_SHARES, default=config.get(CONF_SHARES, 0)): vol.Coerce(float),
                 vol.Optional(CONF_PURCHASE_PRICE, default=config.get(CONF_PURCHASE_PRICE, 0)): vol.Coerce(float),
                 vol.Optional(CONF_PURCHASE_DATE, default=config.get(CONF_PURCHASE_DATE, "")): cv.string,
-                vol.Optional(CONF_CURRENCY, default=config.get(CONF_CURRENCY)): cv.string,
-                vol.Optional(CONF_CONVERSION_CURRENCY, default=config.get(CONF_CONVERSION_CURRENCY)): cv.string,
-                vol.Optional(CONF_INVERT_CONVERSION_CURRENCY, default=config.get(CONF_INVERT_CONVERSION_CURRENCY, False)): cv.boolean,
+                vol.Optional("currency", default=current_currency): vol.In(CURRENCY_MAP),
                 vol.Optional(
                     CONF_MONITORED_CONDITIONS,
                     default=config.get(CONF_MONITORED_CONDITIONS, list(MONITORED_CONDITIONS)),
@@ -380,11 +431,15 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
-                session = self.hass.helpers.aiohttp_client.async_get_clientsession()
-                # Final validation of the instrument
-                await session.get(
-                    f"https://www.avanza.se/_mobile/market/stock/{instrument_info[CONF_ID]}"
-                )
+                try:
+                session = async_get_clientsession(self.hass)
+                # Get instrument details including currency
+                stock_data = await pyavanza.get_stock_info(session, instrument_info[CONF_ID])
+                
+                # Get the currency and set the appropriate conversion if not SEK
+                currency = stock_data.get("currency", "SEK")
+                if currency != "SEK" and currency in CURRENCY_MAP:
+                    instrument_info[CONF_CONVERSION_CURRENCY] = CURRENCY_MAP[currency]
             except aiohttp.ClientError:
                 errors["base"] = "cannot_connect"
                 _LOGGER.error("Failed to connect to Avanza")

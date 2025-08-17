@@ -3,6 +3,55 @@
 DOMAIN = "avanza_stock"
 DEFAULT_NAME = "Avanza Stock GUI"
 
+# Currency mapping - pairs are stored as QUOTE/BASE (e.g., EUR/SEK means 1 EUR = X SEK)
+CURRENCY_MAP = {
+    "SEK": None,  # Default, no conversion needed
+    "USD": {"id": 19000, "pair": "USD/SEK", "invert": False},  # USD/SEK
+    "EUR": {"id": 18998, "pair": "EUR/SEK", "invert": False},  # EUR/SEK
+    "NOK": {"id": 53822, "pair": "NOK/SEK", "invert": False},  # NOK/SEK
+    "DKK": {"id": 53824, "pair": "DKK/SEK", "invert": False},  # DKK/SEK
+    # For SEK as base currency, we invert the existing pairs
+    "SEK/USD": {"id": 19000, "pair": "USD/SEK", "invert": True},
+    "SEK/EUR": {"id": 18998, "pair": "EUR/SEK", "invert": True},
+    "SEK/NOK": {"id": 53822, "pair": "NOK/SEK", "invert": True},
+    "SEK/DKK": {"id": 53824, "pair": "DKK/SEK", "invert": True},
+}
+
+REVERSE_CURRENCY_MAP = {info["id"]: curr for curr, info in CURRENCY_MAP.items() if info and "id" in info}
+REVERSE_CURRENCY_MAP[None] = "SEK"  # Default currency
+
+def get_currency_config(base_currency: str, quote_currency: str = "SEK") -> tuple[int | None, bool]:
+    """Get currency conversion configuration.
+    
+    Args:
+        base_currency: The currency to convert from
+        quote_currency: The currency to convert to (default: SEK)
+        
+    Returns:
+        Tuple of (conversion_currency_id, invert_conversion_currency)
+    """
+    if base_currency == quote_currency:
+        return None, False
+        
+    # Try direct pair
+    pair = f"{base_currency}/{quote_currency}"
+    if pair in CURRENCY_MAP:
+        info = CURRENCY_MAP[pair]
+        return info["id"], info["invert"]
+        
+    # Try inverse pair
+    pair = f"{quote_currency}/{base_currency}"
+    if pair in CURRENCY_MAP:
+        info = CURRENCY_MAP[pair]
+        return info["id"], not info["invert"]  # Invert the inversion flag
+        
+    # Try simple currency (assuming SEK as quote)
+    if base_currency in CURRENCY_MAP and isinstance(CURRENCY_MAP[base_currency], dict):
+        info = CURRENCY_MAP[base_currency]
+        return info["id"], info["invert"]
+        
+    return None, False  # Default to no conversion
+
 # Configuration constants
 CONF_STOCK = "stock"
 CONF_SEARCH = "search"
