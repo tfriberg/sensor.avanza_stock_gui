@@ -3,6 +3,7 @@
         "step": {
             "user": {
                 "menu_options": {
+                    "migrate_yaml": "Import existing configuration from YAML",
                     "search_instrument": "Search for stock/fund/currency",
                     "manual_entry": "Enter ID manually"
                 }
@@ -40,16 +41,41 @@
                     "monitored_conditions": "Values to monitor",
                     "show_trending_icon": "Show trending icon"
                 }
+            },
+            "confirm_migration": {
+                "title": "Confirm Configuration Import",
+                "description": "The following configurations were found:\n\n{configs}\n\nChoose an action to proceed:",
+                "data": {
+                    "action": "Action",
+                    "config_index": "Select configuration to modify"
+                }
+            },
+            "modify_config": {
+                "title": "Modify Configuration",
+                "description": "Update the settings for this instrument:",
+                "data": {
+                    "name": "Name",
+                    "shares": "Number of shares",
+                    "purchase_price": "Purchase price per share",
+                    "purchase_date": "Purchase date",
+                    "currency": "Override currency",
+                    "conversion_currency": "Currency conversion ID",
+                    "invert_conversion_currency": "Invert conversion rate",
+                    "monitored_conditions": "Values to monitor",
+                    "show_trending_icon": "Show trending icon"
+                }
             }
         },
         "error": {
             "cannot_connect": "Failed to connect to Avanza",
             "invalid_stock_id": "Invalid instrument ID",
             "unknown": "Unexpected error occurred",
-            "no_results": "No matching instruments found"
+            "no_results": "No matching instruments found",
+            "migration_error": "Error importing configurations from YAML files"
         },
         "abort": {
-            "already_configured": "This instrument is already configured"
+            "already_configured": "This instrument is already configured",
+            "no_existing_config": "No existing Avanza Stock configurations found in YAML files"
         }
     }
 }

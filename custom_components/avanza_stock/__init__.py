@@ -10,6 +10,9 @@ DOMAIN = "avanza_stock"
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Avanza Stock from a config entry."""
+    from .websocket_api import async_setup
+    async_setup(hass)
+    
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     return True
