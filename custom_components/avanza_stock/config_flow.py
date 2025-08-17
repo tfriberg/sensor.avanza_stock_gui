@@ -100,98 +100,61 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_migrate_yaml(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle migration from YAML."""
-    # ...existing code...
-        
-        errors = {}
-        existing_entries = []
-        
-        try:
-            # Check main configuration.yaml
-            config_path = self.hass.config.path("configuration.yaml")
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
-                    config = yaml.safe_load(f)
-                if config and "sensor" in config:
-                    for sensor in config["sensor"]:
-                        if isinstance(sensor, dict) and sensor.get("platform") == "avanza_stock":
-                            existing_entries.append(sensor)
+        def find_includes(yaml_path, checked=None):
+            if checked is None:
+                checked = set()
+            if yaml_path in checked:
+                return []
+            checked.add(yaml_path)
+            results = []
+            try:
+                with open(yaml_path, "r") as f:
+                    lines = f.readlines()
+                for line in lines:
+                    if "!include" in line:
+                        # Extract included file path
+                        parts = line.split("!include")
+                        if len(parts) > 1:
+                            include_path = parts[1].strip().split()[0].replace("'","").replace('"',"")
+                            # If relative, resolve from current file
+                            if not os.path.isabs(include_path):
+                                include_path = os.path.join(os.path.dirname(yaml_path), include_path)
+                            results += find_includes(include_path, checked)
+                results.append(yaml_path)
+            except Exception:
+                pass
+            return results
 
-            # Check includes directory for additional configs
-            includes_dir = self.hass.config.path("includes")
-            if os.path.exists(includes_dir):
-                for filename in os.listdir(includes_dir):
-                    if filename.endswith(".yaml"):
-                        file_path = os.path.join(includes_dir, filename)
-                        try:
-                            with open(file_path, "r") as f:
-                                include_config = yaml.safe_load(f)
-                            if include_config and "sensor" in include_config:
-                                for sensor in include_config["sensor"]:
+        try:
+            config_path = self.hass.config.path("configuration.yaml")
+            yaml_files = find_includes(config_path)
+            yaml_files = [f for f in yaml_files if os.path.exists(f)]
+            existing_entries = []
+            for file_path in yaml_files:
+                try:
+                    with open(file_path, "r") as f:
+                        docs = list(yaml.safe_load_all(f))
+                    for doc in docs:
+                        if isinstance(doc, dict):
+                            sensors = doc.get("sensor")
+                            if sensors and isinstance(sensors, list):
+                                for sensor in sensors:
                                     if isinstance(sensor, dict) and sensor.get("platform") == "avanza_stock":
                                         existing_entries.append(sensor)
-                        except yaml.YAMLError:
-                            continue
+                        # Also scan for direct platform usage in lists
+                        if isinstance(doc, list):
+                            for item in doc:
+                                if isinstance(item, dict) and item.get("platform") == "avanza_stock":
+                                    existing_entries.append(item)
+                except Exception:
+                    continue
 
             if not existing_entries:
                 return self.async_abort(reason="no_existing_config")
 
             # Store found configurations for the confirmation step
             self._found_configs = []
-            
-            # Process and validate each entry
-            for entry in existing_entries:
-                if "stock" in entry:
-                    stock_config = entry["stock"]
-                    if isinstance(stock_config, int):
-                        # Single stock configuration
-                        self._found_configs.append({
-                            CONF_ID: str(stock_config),
-                            CONF_NAME: entry.get("name", f"{DEFAULT_NAME} {stock_config}"),
-                            CONF_SHARES: entry.get("shares", 0),
-                            CONF_PURCHASE_DATE: entry.get("purchase_date", ""),
-                            CONF_PURCHASE_PRICE: entry.get("purchase_price", 0),
-                            CONF_CURRENCY: entry.get("currency"),
-                            CONF_CONVERSION_CURRENCY: entry.get("conversion_currency"),
-                            CONF_INVERT_CONVERSION_CURRENCY: entry.get("invert_conversion_currency", False),
-                            CONF_MONITORED_CONDITIONS: entry.get("monitored_conditions", list(MONITORED_CONDITIONS)),
-                            CONF_SHOW_TRENDING_ICON: entry.get("show_trending_icon", DEFAULT_SHOW_TRENDING_ICON),
-                        })
-                    elif isinstance(stock_config, list):
-                        # Multiple stocks configuration
-                        for stock in stock_config:
-                            if isinstance(stock, dict):
-                                self._found_configs.append({
-                                    CONF_ID: str(stock["id"]),
-                                    CONF_NAME: stock.get("name", f"{DEFAULT_NAME} {stock['id']}"),
-                                    CONF_SHARES: stock.get("shares", 0),
-                                    CONF_PURCHASE_DATE: stock.get("purchase_date", ""),
-                                    CONF_PURCHASE_PRICE: stock.get("purchase_price", 0),
-                                    CONF_CURRENCY: stock.get("currency"),
-                                    CONF_CONVERSION_CURRENCY: stock.get("conversion_currency"),
-                                    CONF_INVERT_CONVERSION_CURRENCY: stock.get("invert_conversion_currency", False),
-                                    CONF_MONITORED_CONDITIONS: entry.get("monitored_conditions", list(MONITORED_CONDITIONS)),
-                                    CONF_SHOW_TRENDING_ICON: entry.get("show_trending_icon", DEFAULT_SHOW_TRENDING_ICON),
-                                })
-
-            # Move to confirmation step
-            return await self.async_step_confirm_migration()
-
-        except Exception as ex:  # pylint: disable=broad-except
-            _LOGGER.exception("Error migrating YAML configuration: %s", ex)
-            errors["base"] = "migration_error"
-
-        # If we get here, something went wrong
-        return self.async_show_form(
-            step_id="migrate_yaml",
-            errors=errors,
-        )
-
-    async def async_step_search_instrument(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle the search step."""
-        errors = {}
+            # ...existing code for processing entries...
         
         if user_input is not None:
             if CONF_ID in user_input:  # User selected an instrument
