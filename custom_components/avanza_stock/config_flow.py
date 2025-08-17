@@ -2,49 +2,26 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import voluptuous as vol
+import aiohttp
+import pyavanza
+
 from homeassistant import config_entries
 from homeassistant.const import (
     CONF_CURRENCY,
     CONF_ID,
     CONF_MONITORED_CONDITIONS,
-    CONF_N                    self._selected_instrument = next(
-                    (item for item in self._search_results if str(item["id"]) == user_input[CONF_ID]),
-                    None
-                )
-                if self._selected_instrument:
-                    try:
-                        # Get full instrument details
-                        session = async_get_clientsession(self.hass)
-                        stock_data = await pyavanza.get_stock_info(
-                            session, 
-                            self._selected_instrument["id"]
-                        )
-                        
-                        config_data = {
-                            CONF_ID: self._selected_instrument["id"],
-                            CONF_NAME: self._selected_instrument["name"]
-                        }
-                        
-                # Set currency conversion if not already set
-                if CONF_CONVERSION_CURRENCY not in instrument_info:
-                    currency = stock_data.get("currency", "SEK")
-                    conversion_id, should_invert = get_currency_config(currency)
-                    if conversion_id is not None:
-                        instrument_info[CONF_CONVERSION_CURRENCY] = conversion_id
-                        instrument_info[CONF_INVERT_CONVERSION_CURRENCY] = should_invert                        return await self.async_step_configure(config_data)
-                    except Exception as err:  # pylint: disable=broad-except
-                        _LOGGER.error("Failed to get stock details: %s", err)
-                        errors["base"] = "cannot_connect"om homeassistant.core import callback, HomeAssistant
+    CONF_NAME,
+)
+from homeassistant.core import callback, HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
-import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.components import websocket_api
-
-import aiohttp
-import pyavanza
+import homeassistant.helpers.config_validation as cv
+import yaml
+from yaml.loader import SafeLoader
 
 from .const import (
     CONF_CONVERSION_CURRENCY,
@@ -63,145 +40,48 @@ from .const import (
     INSTRUMENT_TYPES,
     CURRENCY_MAP,
     REVERSE_CURRENCY_MAP,
+    get_currency_config,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Avanza Stock."""
 
-    VERSION = 1
+class AvanzaStockOptionsFlow(config_entries.OptionsFlow):
+    """Handle options flow for Avanza Stock integration."""
 
-    def __init__(self) -> None:
-        """Initialize the config flow."""
-        super().__init__()
-        self._search_results = []
-        self._found_configs = []
-        self._current_config_index = 0
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
 
-    @staticmethod
-    @callback
-    def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
-    ) -> AvanzaStockOptionsFlow:
-        """Get the options flow for this handler."""
-        return AvanzaStockOptionsFlow(config_entry)
-
-    async def async_step_confirm_migration(
+    async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle confirmation of found configurations."""
-        errors = {}
-
+        """Handle options flow."""
         if user_input is not None:
-            if user_input.get("action") == "confirm":
-                # Import selected configurations
-                selected_indexes = [int(i) for i in user_input.get("configs_to_import", [])]
-                for i in selected_indexes:
-                    config = self._found_configs[i]
-                    await self.async_step_configure(config)
-                # Clear the stored configs
-                self._found_configs = []
-                # Return to main menu for optional additional setup
-                return self.async_show_menu(
-                    step_id="user",
-                    menu_options=["search_instrument", "manual_entry"]
-                )
-            elif user_input.get("action") == "modify":
-                # Move to modify step for the selected configuration
-                self._current_config_index = int(user_input.get("config_index", 0))
-                return await self.async_step_modify_config()
-            elif user_input.get("action") == "add_more":
-                # Go to search step while keeping found configurations
-                return await self.async_step_search_instrument()
+            return self.async_create_entry(title="", data=user_input)
 
-        # Create a list of configurations to display
-        config_list = []
-        for i, config in enumerate(self._found_configs):
-            name = config.get(CONF_NAME, f"Stock {config[CONF_ID]}")
-            shares = config.get(CONF_SHARES, 0)
-            purchase_price = config.get(CONF_PURCHASE_PRICE, 0)
-            purchase_date = config.get(CONF_PURCHASE_DATE, "")
-            conv_curr_id = config.get(CONF_CONVERSION_CURRENCY)
-            currency = REVERSE_CURRENCY_MAP.get(conv_curr_id, "SEK")
-            
-            config_list.append({
-                "id": config[CONF_ID],
-                "name": name,
-                "shares": shares,
-                "purchase_price": purchase_price,
-                "purchase_date": purchase_date,
-                "currency": currency,
-                "display": f"{name}: {shares} shares @ {purchase_price} {currency}" + 
-                          (f" (bought {purchase_date})" if purchase_date else "")
-            })
-
-        config_indexes = {str(i): conf["display"] for i, conf in enumerate(config_list)}
-        
         return self.async_show_form(
-            step_id="confirm_migration",
+            step_id="init",
             data_schema=vol.Schema({
-                vol.Optional("configs_to_import", default=list(config_indexes.keys())): cv.multi_select(config_indexes),
-                vol.Required("action"): vol.In({
-                    "confirm": "Import selected configurations",
-                    "modify": "Modify selected configuration",
-                    "add_more": "Add more instruments",
-                }),
-                vol.Optional("config_index"): vol.In(config_indexes),
-            }),
-            description_placeholders={
-                "total": str(len(config_list)),
-                "configs": "\n".join(f"• {conf['display']}" for conf in config_list)
-            },
-            errors=errors,
-        )
-
-    async def async_step_modify_config(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle modification of a found configuration."""
-        errors = {}
-        config = self._found_configs[self._current_config_index]
-
-        if user_input is not None:
-            # Convert currency selection to conversion_currency ID
-            selected_currency = user_input.pop("currency", "SEK")
-            if selected_currency != "SEK":
-                user_input[CONF_CONVERSION_CURRENCY] = CURRENCY_MAP[selected_currency]
-            elif CONF_CONVERSION_CURRENCY in self._found_configs[self._current_config_index]:
-                del self._found_configs[self._current_config_index][CONF_CONVERSION_CURRENCY]
-            
-            # Update the configuration with new values
-            self._found_configs[self._current_config_index].update(user_input)
-            # Return to confirmation step
-            return await self.async_step_confirm_migration()
-
-        # Show form with current values
-        # Get current currency from conversion_currency
-        current_currency = REVERSE_CURRENCY_MAP.get(
-            config.get(CONF_CONVERSION_CURRENCY),
-            "SEK"
-        )
-        
-        return self.async_show_form(
-            step_id="modify_config",
-            data_schema=vol.Schema({
-                vol.Required(CONF_NAME, default=config.get(CONF_NAME)): cv.string,
-                vol.Optional(CONF_SHARES, default=config.get(CONF_SHARES, 0)): vol.Coerce(float),
-                vol.Optional(CONF_PURCHASE_PRICE, default=config.get(CONF_PURCHASE_PRICE, 0)): vol.Coerce(float),
-                vol.Optional(CONF_PURCHASE_DATE, default=config.get(CONF_PURCHASE_DATE, "")): cv.string,
-                vol.Optional("currency", default=current_currency): vol.In(CURRENCY_MAP),
                 vol.Optional(
                     CONF_MONITORED_CONDITIONS,
-                    default=config.get(CONF_MONITORED_CONDITIONS, list(MONITORED_CONDITIONS)),
+                    default=self.config_entry.options.get(
+                        CONF_MONITORED_CONDITIONS, list(MONITORED_CONDITIONS)
+                    ),
                 ): cv.multi_select(MONITORED_CONDITIONS),
                 vol.Optional(
                     CONF_SHOW_TRENDING_ICON,
-                    default=config.get(CONF_SHOW_TRENDING_ICON, DEFAULT_SHOW_TRENDING_ICON),
+                    default=self.config_entry.options.get(
+                        CONF_SHOW_TRENDING_ICON, DEFAULT_SHOW_TRENDING_ICON
+                    ),
                 ): cv.boolean,
-            }),
-            errors=errors,
+            })
         )
+
+
+class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Avanza Stock."""
+
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -221,11 +101,7 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle migration from YAML."""
-        import os
-        import yaml
-        from homeassistant.util.yaml import load_yaml
-        from homeassistant.util.yaml.loader import load_yaml_dict
-        from homeassistant.helpers.typing import ConfigType
+    # ...existing code...
         
         errors = {}
         existing_entries = []
@@ -234,8 +110,9 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Check main configuration.yaml
             config_path = self.hass.config.path("configuration.yaml")
             if os.path.exists(config_path):
-                config = await self.hass.async_add_executor_job(load_yaml, config_path)
-                if "sensor" in config:
+                with open(config_path, "r") as f:
+                    config = yaml.safe_load(f)
+                if config and "sensor" in config:
                     for sensor in config["sensor"]:
                         if isinstance(sensor, dict) and sensor.get("platform") == "avanza_stock":
                             existing_entries.append(sensor)
@@ -247,10 +124,9 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if filename.endswith(".yaml"):
                         file_path = os.path.join(includes_dir, filename)
                         try:
-                            include_config = await self.hass.async_add_executor_job(
-                                load_yaml_dict, file_path
-                            )
-                            if "sensor" in include_config:
+                            with open(file_path, "r") as f:
+                                include_config = yaml.safe_load(f)
+                            if include_config and "sensor" in include_config:
                                 for sensor in include_config["sensor"]:
                                     if isinstance(sensor, dict) and sensor.get("platform") == "avanza_stock":
                                         existing_entries.append(sensor)
@@ -431,25 +307,15 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
-                try:
                 session = async_get_clientsession(self.hass)
                 # Get instrument details including currency
                 stock_data = await pyavanza.get_stock_info(session, instrument_info[CONF_ID])
-                
                 # Get the currency and set the appropriate conversion if not SEK
                 currency = stock_data.get("currency", "SEK")
                 if currency != "SEK" and currency in CURRENCY_MAP:
                     instrument_info[CONF_CONVERSION_CURRENCY] = CURRENCY_MAP[currency]
-            except aiohttp.ClientError:
-                errors["base"] = "cannot_connect"
-                _LOGGER.error("Failed to connect to Avanza")
-            except Exception:  # pylint: disable=broad-except
-                errors["base"] = "unknown"
-                _LOGGER.exception("Unexpected error occurred")
-            else:
                 user_input.update(instrument_info)  # Merge instrument info with user input
                 title = user_input.get(CONF_NAME, f"{DEFAULT_NAME} {instrument_info[CONF_ID]}")
-                
                 return self.async_create_entry(
                     title=title,
                     data={
@@ -471,6 +337,12 @@ class AvanzaStockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         ),
                     },
                 )
+            except aiohttp.ClientError:
+                errors["base"] = "cannot_connect"
+                _LOGGER.error("Failed to connect to Avanza")
+            except Exception:  # pylint: disable=broad-except
+                errors["base"] = "unknown"
+                _LOGGER.exception("Unexpected error occurred")
 
         # Show the configuration form
         return self.async_show_form(
